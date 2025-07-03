@@ -1,8 +1,12 @@
-from fastapi import Depends, FastAPI
-from supabase import Client  # Import Client for type hinting
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from supabase import Client
 
-from .core.config import settings
-from .core.supabase_client import get_supabase_client
+from app.api.v1.router import api_router  # Import the API router
+from app.core.config import settings
+from app.core.dependencies import get_current_active_user
+from app.core.supabase_client import get_supabase_client
+from app.features.auth.services.auth_service import AuthService
 
 app = FastAPI(
     title="PaperVault API",
@@ -10,6 +14,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(api_router, prefix="/api/v1")  # Include the API router
 
 @app.get("/")
 async def read_root():
@@ -20,8 +25,6 @@ async def read_root():
 async def healthcheck(supabase: Client = Depends(get_supabase_client)):
     """Check Supabase connection."""
     try:
-        # Attempt a simple query to verify connection
-        # This assumes you have a 'profiles' table or similar accessible table
         response = supabase.from_("profiles").select("id").limit(1).execute()
         if response.data is not None:
             return {
@@ -37,6 +40,12 @@ async def healthcheck(supabase: Client = Depends(get_supabase_client)):
             }
     except Exception as e:
         return {"status": "error", "supabase_connected": False, "detail": str(e)}
+
+
+@app.get("/users/me")
+async def read_users_me(current_user: dict = Depends(get_current_active_user)):
+    """Get current authenticated user's details."""
+    return current_user
 
 
 if __name__ == "__main__":
